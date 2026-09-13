@@ -173,7 +173,7 @@ function genPhone(){
 function makeP(id,name,admin){
   return {
     id,name,isAdmin:admin,
-    money:admin?50000:5000, coins:admin?4000:50, uetolko:admin?150000000000:0,
+    money:admin?50000:20000, coins:admin?4000:50, uetolko:admin?150000000000:0,
     inventory:[],cars:[],wins:0,
     hasLicense:false,hasInsurance:false,promosUsed:[],
     activeCar:null,pos:{x:250,y:900},angle:0,
@@ -395,4 +395,4 @@ io.on('connection', socket => {
       const c = TUNING.camber.find(x=>x.id===id); if(!c) return;
       if(t.camber===c.id) return socket.emit('error','Уже стоит');
       price = c.price; msg = `🛞 ${c.name}`;
-      if(p.money<price) return socket.emit('
+      if(p.money<price) return socket.emit(
