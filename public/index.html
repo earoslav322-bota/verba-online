@@ -1,0 +1,17 @@
+aiReply',({text})=>addAI('bot',text));
+socket.on('toast',t=>toast(t));
+socket.on('dead',()=>{dead=true;$('deadOverlay').classList.add('show');updateDocs()});
+socket.on('error',m=>{toast(m,'bad');spinning=false;$('spinBtn').disabled=false});
+socket.on('callRinging',({callId,to,toPhone})=>{currentCall={callId,isCaller:true,from:to,fromPhone:toPhone,status:'ringing'};showCall('ringing')});
+socket.on('incomingCall',({callId,from,fromPhone,fromId})=>{currentCall={callId,isCaller:false,from,fromPhone,fromId,status:'ringing'};showCall('incoming')});
+socket.on('callAccepted',({callId})=>{if(currentCall&&currentCall.callId===callId){currentCall.status='active';currentCall.startedAt=Date.now();showCall('active')}});
+socket.on('callEnded',({callId,reason})=>{if(currentCall&&currentCall.callId===callId){hideCall();if(reason==='no_money')toast('📞 Кончились деньги','bad');if(reason==='declined')toast('📞 Отклонён','bad')}});
+socket.on('callMessage',m=>{const b=$('callChat');if(!b)return;const mine=m.from===myId;const d=document.createElement('div');d.style.cssText='font-size:12px;padding:3px 0';d.innerHTML=<b style="color:${mine?'#7dff9b':'#a06bff'}">${esc(m.fromName)}:</b> ${esc(m.text)};b.appendChild(d);b.scrollTop=b.scrollHeight});
+function showCall(st){$('callOverlay').classList.add('show');$('callAvatar').textContent='📞';$('callName').textContent=currentCall.from'—';const m={ringing:'📡 Гудки...',incoming:'📲 Входящий',active:'🎙️ Разговор'};$('callStatus').textContent=m[st]'—';const b=$('callBtns');b.innerHTML='';if(st==='incoming'){$('callTimer').classList.add('hidden');$('callChat').classList.add('hidden');$('callInputRow').classList.add('hidden');b.innerHTML=<button class="cbt ac" onclick="acceptCall()">✓</button><button class="cbt dc" onclick="declineCall()">✕</button>}else if(st==='ringing'){$('callTimer').classList.add('hidden');$('callChat').classList.add('hidden');$('callInputRow').classList.add('hidden');b.innerHTML=<button class="cbt dc" onclick="endCall()">✕</button>}else if(st==='active'){$('callTimer').classList.remove('hidden');$('callChat').classList.remove('hidden');$('callInputRow').classList.remove('hidden');b.innerHTML=<button class="cbt dc" onclick="endCall()">✕</button>;startCallTimer()}}
+function hideCall(){$('callOverlay').classList.remove('show');if(callTimerInterval){clearInterval(callTimerInterval);callTimerInterval=null}$('callChat').innerHTML='';currentCall=null}
+function startCallTimer(){if(callTimerInterval)clearInterval(callTimerInterval);callTimerInterval=setInterval(()=>{if(!currentCall||!currentCall.startedAt)return;const s=Math.floor((Date.now()-currentCall.startedAt)/1000);$('callTimer').textContent=String(Math.floor(s/60)).padStart(2,'0')+':'+String(s%60).padStart(2,'0')},1000)}
+function acceptCall(){if(currentCall)socket.emit('acceptCall',{callId:currentCall.callId})}
+function declineCall(){if(currentCall)socket.emit('declineCall',{callId:currentCall.callId});hideCall()}
+function endCall(){if(currentCall)socket.emit('endCall',{callId:currentCall.callId});hideCall()}
+$('nameInput').focus();
+</script></body></html>
