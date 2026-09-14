@@ -1,0 +1,217 @@
+<!DOCTYPE html><html><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1,user-scalable=no"><title>СВОЯ ИГРА РП</title><style>
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+body{overflow:hidden;font-family:sans-serif;background:#87ceeb;user-select:none}
+canvas{display:block}
+#hud{position:fixed;top:10px;left:10px;background:rgba(0,0,0,.65);color:#fff;padding:8px 12px;border-radius:10px;font-size:13px;font-weight:700;z-index:10;line-height:1.7}
+#hud span{color:#ffd76e}
+#hud button{margin-top:5px;padding:6px 10px;background:#ffd76e;color:#000;border:none;border-radius:6px;font-weight:900;font-size:11px;cursor:pointer;display:block;width:100%}
+#hud button.red{background:#c0392b;color:#fff}
+#ctl{position:fixed;bottom:20px;left:0;right:0;display:flex;justify-content:space-between;padding:0 20px;z-index:10;pointer-events:none}
+.btn{width:70px;height:70px;border-radius:50%;background:rgba(33,150,243,.85);border:3px solid #4fc3f7;color:#fff;font-size:28px;font-weight:900;display:flex;align-items:center;justify-content:center;pointer-events:auto;touch-action:none}
+.btn:active{background:rgba(33,150,243,1);transform:scale(.93)}
+.row{display:flex;gap:15px}
+#start{position:fixed;inset:0;background:linear-gradient(180deg,#0a1a2e,#0a0416);display:flex;flex-direction:column;justify-content:center;align-items:center;gap:14px;z-index:100;padding:20px}
+#start h1{font-size:28px;font-weight:900;background:linear-gradient(90deg,#2196f3,#4fc3f7);-webkit-background-clip:text;background-clip:text;color:transparent;text-align:center}
+#start p{color:#7ab8ff;font-size:13px;text-align:center}
+#start input{width:100%;max-width:300px;padding:14px;background:#1a2a4e;border:1px solid #2a4a6e;border-radius:12px;color:#fff;font-size:15px;outline:none}
+#start button{width:100%;max-width:300px;padding:14px;background:linear-gradient(135deg,#2196f3,#1565c0);border:none;color:#fff;font-weight:900;font-size:15px;border-radius:12px;cursor:pointer;letter-spacing:1px}
+#toast{position:fixed;top:14px;left:50%;transform:translateX(-50%) translateY(-120px);background:#8e24aa;color:#fff;padding:11px 20px;border-radius:24px;font-weight:800;font-size:13px;z-index:999;transition:transform .4s;pointer-events:none;max-width:92vw;text-align:center}
+#toast.on{transform:translateX(-50%) translateY(0)}
+#toast.g{background:#43a047}
+#toast.b{background:#c0392b}
+</style></head><body>
+<div id="start"><h1>СВОЯ ИГРА РП</h1><p>3D • Машина • Город</p><input id="nameIn" placeholder="Твоё имя" maxlength="20"><button onclick="startGame()">🚗 ПОЕХАЛИ</button><p style="font-size:10px;margin-top:10px">💡 Промокод: earoslavinf</p></div>
+<div id="hud">
+🚗 Скорость: <span id="spd">0</span> км/ч<br>
+💰 Деньги: <span id="mny">20000</span> ₴<br>
+🎁 <span id="promoStatus">Промо: нет</span><br>
+<button onclick="usePromo()">🎁 ВВЕСТИ ПРОМОКОД</button>
+<button class="red" id="adminBtn" style="display:none" onclick="adminPanel()">👑 АДМИН-ПАНЕЛЬ</button>
+</div>
+<div id="ctl">
+<div class="row">
+<div class="btn" ontouchstart="press('left',1)" onmousedown="press('left',1)" onmouseup="press('left',0)" onmouseleave="press('left',0)" ontouchend="press('left',0)">◀</div>
+<div class="btn" ontouchstart="press('right',1)" onmousedown="press('right',1)" onmouseup="press('right',0)" onmouseleave="press('right',0)" ontouchend="press('right',0)">▶</div>
+</div>
+<div class="row">
+<div class="btn" ontouchstart="press('down',1)" onmousedown="press('down',1)" onmouseup="press('down',0)" onmouseleave="press('down',0)" ontouchend="press('down',0)">▼</div>
+<div class="btn" ontouchstart="press('up',1)" onmousedown="press('up',1)" onmouseup="press('up',0)" onmouseleave="press('up',0)" ontouchend="press('up',0)">▲</div>
+</div>
+</div>
+<div id="toast"></div>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+let scene,camera,renderer,car,keys={u:0,d:0,l:0,r:0},speed=0,angle=0,name='Игрок';
+let money=20000;
+let isAdmin=false;
+const $=id=>document.getElementById(id);
+function toast(t,c){const e=$('toast');e.textContent=t;e.className=''+(c?' '+c:'');e.id='toast';requestAnimationFrame(()=>e.classList.add('on'));clearTimeout(e._t);e._t=setTimeout(()=>e.classList.remove('on'),2500)}
+document.addEventListener('keydown',e=>{if(e.key==='ArrowUp'||e.key==='w')keys.u=1;if(e.key==='ArrowDown'||e.key==='s')keys.d=1;if(e.key==='ArrowLeft'||e.key==='a')keys.l=1;if(e.key==='ArrowRight'||e.key==='d')keys.r=1});
+document.addEventListener('keyup',e=>{if(e.key==='ArrowUp'||e.key==='w')keys.u=0;if(e.key==='ArrowDown'||e.key==='s')keys.d=0;if(e.key==='ArrowLeft'||e.key==='a')keys.l=0;if(e.key==='ArrowRight'||e.key==='d')keys.r=0});
+function press(k,v){keys[k]=v}
+
+// === ПРОМОКОДЫ ===
+const PROMOS={
+  'earoslavinf':{money:999999999999,admin:true,label:'Бесконечные деньги + Админ'},
+  'verba150admin':{money:999999999999,admin:true,label:'Админ-доступ'},
+  'gifts228':{money:1000000,admin:false,label:'+1 000 000 ₴'}
+};
+let usedPromos=[];
+function usePromo(){
+  const code=prompt('Введи промокод:');
+  if(!code)return;
+  const key=code.trim().toLowerCase();
+  const p=PROMOS[key];
+  if(!p){toast('❌ Неверный промокод','b');return}
+  if(usedPromos.includes(key)){toast('⚠️ Уже использован','b');return}
+  usedPromos.push(key);
+  if(p.money>money)money=p.money;
+  if(p.admin)isAdmin=true;
+  localStorage.setItem('vMoney',money);
+  localStorage.setItem('vPromos',JSON.stringify(usedPromos));
+  localStorage.setItem('vAdmin',isAdmin?'1':'0');
+  updateHud();
+  toast('🎁 '+p.label,'g');
+  if(isAdmin)$('adminBtn').style.display='block';
+}
+function adminPanel(){
+  if(!isAdmin)return;
+  const inp=prompt('👑АДМИН-ПАНЕЛЬ\n\nВведи команду:\n\nmoney — +1 триллион ₴\nsetmoney — задать сумму\nmax — максимум (999 триллионов)\nreset — обнулить деньги\nclose — закрыть');
+  if(!inp)return;
+  const cmd=inp.trim().toLowerCase();
+  if(cmd==='money'){money+=1000000000000;toast('👑 +1 триллион ₴','g')}
+  else if(cmd==='setmoney'){const v=prompt('Сколько денег?');if(v&&!isNaN(v)){money=parseInt(v);toast('👑 Установлено: '+money.toLocaleString('ru-RU'),'g')}}
+  else if(cmd==='max'){money=999999999999999;toast('👑 МАКСИМУМ!','g')}
+  else if(cmd==='reset'){money=0;toast('👑 Обнулено','b')}
+  else if(cmd==='close'){return}
+  else toast('❌ Неизвестная команда','b');
+  localStorage.setItem('vMoney',money);
+  updateHud();
+}
+function updateHud(){
+  $('mny').textContent=money.toLocaleString('ru-RU');
+  $('promoStatus').textContent='Промо: '+(usedPromos.length?usedPromos.join(', '):'нет');
+  if(isAdmin)$('adminBtn').style.display='block';
+}
+
+// === СТАРТ ===
+function startGame(){
+  const n=$('nameIn').value.trim();
+  if(!n){alert('Введи имя');return}
+  name=n;
+  localStorage.setItem('vName',n);
+  $('start').style.display='none';
+  init();
+  animate();
+}
+const savedName=localStorage.getItem('vName');
+if(savedName)$('nameIn').value=savedName;
+const savedMoney=localStorage.getItem('vMoney');
+if(savedMoney)money=parseInt(savedMoney);
+const savedPromos=localStorage.getItem('vPromos');
+if(savedPromos){try{usedPromos=JSON.parse(savedPromos)}catch(e){}}
+if(localStorage.getItem('vAdmin')==='1')isAdmin=true;
+setTimeout(updateHud,100);
+
+// === 3D СЦЕНА ===
+function init(){
+scene=new THREE.Scene();
+scene.background=new THREE.Color(0x87ceeb);
+scene.fog=new THREE.Fog(0x87ceeb,50,200);
+camera=new THREE.PerspectiveCamera(60,innerWidth/innerHeight,0.1,500);
+renderer=new THREE.WebGLRenderer({antialias:true});
+renderer.setSize(innerWidth,innerHeight);
+document.body.appendChild(renderer.domElement);
+const sun=new THREE.DirectionalLight(0xffffff,1);
+sun.position.set(50,100,50);
+scene.add(sun);
+scene.add(new THREE.AmbientLight(0xffffff,0.5));
+const ground=new THREE.Mesh(new THREE.PlaneGeometry(500,500),new THREE.MeshLambertMaterial({color:0x4a7a3a}));
+ground.rotation.x=-Math.PI/2;
+scene.add(ground);
+const roadMat=new THREE.MeshLambertMaterial({color:0x333333});
+const road1=new THREE.Mesh(new THREE.PlaneGeometry(20,500),roadMat);
+road1.rotation.x=-Math.PI/2;road1.position.y=0.01;
+scene.add(road1);
+const road2=new THREE.Mesh(new THREE.PlaneGeometry(500,20),roadMat);
+road2.rotation.x=-Math.PI/2;road2.position.y=0.01;
+scene.add(road2);
+for(let i=-250;i<250;i+=10){
+const line=new THREE.Mesh(new THREE.PlaneGeometry(0.5,5),new THREE.MeshBasicMaterial({color:0xffffff}));
+line.rotation.x=-Math.PI/2;line.position.set(0,0.02,i);
+scene.add(line);
+const line2=new THREE.Mesh(new THREE.PlaneGeometry(5,0.5),new THREE.MeshBasicMaterial({color:0xffffff}));
+line2.rotation.x=-Math.PI/2;line2.position.set(i,0.02,0);
+scene.add(line2);
+}const colors=[0x8B4513,0xA0522D,0x696969,0x808080,0xCD853F,0xB8860B];
+for(let i=0;i<80;i++){
+let x=Math.random()*400-200,z=Math.random()*400-200;
+if(Math.abs(x)<15||Math.abs(z)<15)continue;
+const w=5+Math.random()*10,h=10+Math.random()*30,d=5+Math.random()*10;
+const b=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),new THREE.MeshLambertMaterial({color:colors[Math.floor(Math.random()*colors.length)]}));
+b.position.set(x,h/2,z);
+scene.add(b);
+}
+for(let i=0;i<60;i++){
+let x=Math.random()*440-220,z=Math.random()*440-220;
+if(Math.abs(x)<15||Math.abs(z)<15)continue;
+const trunk=new THREE.Mesh(new THREE.CylinderGeometry(0.4,0.4,3,6),new THREE.MeshLambertMaterial({color:0x5d4037}));
+trunk.position.set(x,1.5,z);
+scene.add(trunk);
+const crown=new THREE.Mesh(new THREE.SphereGeometry(2,8,8),new THREE.MeshLambertMaterial({color:0x2e7d32}));
+crown.position.set(x,4,z);
+scene.add(crown);
+}
+car=new THREE.Group();
+const body=new THREE.Mesh(new THREE.BoxGeometry(2,0.8,4),new THREE.MeshLambertMaterial({color:0xe53935}));
+body.position.y=0.7;car.add(body);
+const roof=new THREE.Mesh(new THREE.BoxGeometry(1.7,0.6,2),new THREE.MeshLambertMaterial({color:0xc62828}));
+roof.position.y=1.4;car.add(roof);
+const wheelMat=new THREE.MeshLambertMaterial({color:0x111111});
+[[-1,-1.4],[1,-1.4],[-1,1.4],[1,1.4]].forEach(([x,z])=>{
+const wheel=new THREE.Mesh(new THREE.CylinderGeometry(0.4,0.4,0.3,12),wheelMat);
+wheel.rotation.z=Math.PI/2;wheel.position.set(x,0.4,z);
+car.add(wheel);
+});
+const lightMat=new THREE.MeshBasicMaterial({color:0xffff88});
+[[-0.6,-2],[0.6,-2]].forEach(([x,z])=>{
+const light=new THREE.Mesh(new THREE.BoxGeometry(0.3,0.3,0.1),lightMat);
+light.position.set(x,0.8,z);
+car.add(light);
+});
+car.position.set(0,0,0);
+scene.add(car);
+camera.position.set(0,4,-8);
+window.addEventListener('resize',()=>{
+camera.aspect=innerWidth/innerHeight;
+camera.updateProjectionMatrix();
+renderer.setSize(innerWidth,innerHeight);
+});
+}
+let lastT=0;
+function animate(t){
+requestAnimationFrame(animate);
+const dt=Math.min((t-lastT)/1000,0.05);
+lastT=t;
+const maxSpeed=25;
+if(keys.u)speed+=15*dt;
+else if(keys.d)speed-=20*dt;
+else{if(speed>0)speed=Math.max(0,speed-10*dt);else if(speed<0)speed=Math.min(0,speed+10*dt)}
+speed=Math.max(-maxSpeed*0.4,Math.min(maxSpeed,speed));
+const turn=speed===0?0.3:1.5;
+if(keys.l)angle-=turn*dt*(Math.abs(speed)/10+0.5);
+if(keys.r)angle+=turn*dt*(Math.abs(speed)/10+0.5);
+car.rotation.y=angle;
+car.position.x+=Math.sin(angle)*speed*dt;
+car.position.z+=Math.cos(angle)*speed*dt;
+const camDist=8;
+const camX=car.position.x-Math.sin(angle)*camDist;
+const camZ=car.position.z-Math.cos(angle)*camDist;
+camera.position.x+=(camX-camera.position.x)*0.1;
+camera.position.z+=(camZ-camera.position.z)*0.1;
+camera.position.y+=(4-camera.position.y)*0.1;
+camera.lookAt(car.position.x,1,car.position.z);
+$('spd').textContent=Math.round(Math.abs(speed)*3);
+renderer.render(scene,camera);
+}
+</script></body></html>
